@@ -94,6 +94,7 @@ class RequestStats(NamedTuple):
     start_time_ms: float
     input_num_turns: int
     input_num_tokens: int
+    input_num_new_tokens: int
     output_num_tokens: int
     output_num_chunks: int
     output_num_first_chunk_tokens: int
@@ -103,7 +104,7 @@ class RequestStats(NamedTuple):
 
     def __str__(self) -> str:
         return (
-            f"ttft_ms {self.ttft_ms:.2f}, tpot_ms {self.tpot_ms:.2f}, latency_ms {self.latency_ms:.2f}, input_num_tokens {self.input_num_tokens}, "  # noqa: E501
+            f"ttft_ms {self.ttft_ms:.2f}, tpot_ms {self.tpot_ms:.2f}, latency_ms {self.latency_ms:.2f}, input_num_tokens {self.input_num_tokens}, input_num_new_tokens {self.input_num_new_tokens}"  # noqa: E501
             f"output_num_tokens {self.output_num_tokens} ({self.output_num_chunks} chunks, {self.output_num_first_chunk_tokens} tokens in first chunk), "  # noqa: E501
             f"approx_cached_percent {self.approx_cached_percent:.2f}%"
         )
@@ -479,6 +480,7 @@ async def send_turn(
         start_time_ms=response.start_time_ms,
         input_num_turns=len(messages),
         input_num_tokens=input_num_tokens,
+        input_num_new_tokens=question_num_tokens,
         output_num_tokens=output_num_tokens,
         output_num_chunks=response.num_chunks,
         output_num_first_chunk_tokens=first_chunk_tokens,
