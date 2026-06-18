@@ -192,13 +192,22 @@ class AiterMLAMetadataBuilder(MLACommonMetadataBuilder[AiterMLAMetadata]):
         # make sure get_mla_metadata_info_v1 / get_mla_metadata_v1 are consistent
         # with the actual tensor shape passed to mla_decode_fwd.
         self._num_attention_heads = max(16, self.num_heads)
-        q_dtype = self.decode_attn_out_dtype
         kv_cache_dtype_str = getattr(vllm_config.cache_config, "cache_dtype", "auto")
         if kv_cache_dtype_str in ("fp8", "fp8_e4m3", "fp8_e5m2"):
             kv_cache_dtype_str = "fp8"
         else:
             kv_cache_dtype_str = "bf16"
         kv_dtype = dtypes.d_dtypes.get(kv_cache_dtype_str, dtypes.bf16)
+
+        # When FP8 KV cache is enabled, queries are also quantized to FP8
+        # before the MLA decode kernel. The metadata tile sizes differ between
+        # FP8 and BF16, so q_dtype must reflect the actual kernel input dtype.
+        if kv_cache_dtype_str == "fp8":
+            q_dtype = dtypes.fp8
+        else:
+            q_dtype = self.decode_attn_out_dtype
+        self._mla_q_dtype = q_dtype
+        self._mla_kv_dtype = kv_dtype
         (
             (work_meta_data_size, work_meta_data_type),
             (work_indptr_size, work_indptr_type),
@@ -534,6 +543,8 @@ class AiterMLAMetadataBuilder(MLACommonMetadataBuilder[AiterMLAMetadata]):
                 max_seqlen_qo=max_qo_len,
                 uni_seqlen_qo=max_qo_len,
                 fast_mode=True,
+                dtype_q=self._mla_q_dtype,
+                dtype_kv=self._mla_kv_dtype,
             )
             has_persistent_metadata = True
 
