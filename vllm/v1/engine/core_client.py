@@ -1394,6 +1394,8 @@ class DPLBAsyncMPClient(DPAsyncMPClient):
 
         # To route aborts to the correct engine.
         self.reqs_in_flight: dict[str, EngineIdentity] = {}
+        # Session affinity: maps session IDs to engine indices.
+        self.session_rank_map: dict[str, int] = {}
 
         super().__init__(
             vllm_config,
@@ -1417,23 +1419,37 @@ class DPLBAsyncMPClient(DPAsyncMPClient):
                 request.pooling_params, len(self.core_engines)
             )
         ) is None:
-            current_counts = self.lb_engines
-            # TODO use P2C alg for larger DP sizes
-            num_engines = len(current_counts)
-            min_score = sys.maxsize
-            eng_index = 0
-            for i in range(num_engines):
-                # Start from client_index to help with balancing when engines
-                # are empty.
-                idx = (self.eng_start_index + i) % num_engines
-                waiting, running = current_counts[idx]
-                score = waiting * 4 + running
-                if score < min_score:
-                    min_score = score
-                    eng_index = idx
-            # Increment local waiting count for better balancing between stats
-            # updates from the coordinator (which happen every 100ms).
-            current_counts[eng_index][0] += self.client_count
+            # Session affinity: reuse previous engine for same session.
+
+            # TODO: Disable this by default and enable it via CLI argument
+            # `--router-policy cache_aware`.
+            if request.session_id is not None and (
+                eng_index := self.session_rank_map.get(request.session_id)
+            ) is not None:
+                pass  # `eng_index`` is set.
+            else:
+                current_counts = self.lb_engines
+                # TODO use P2C alg for larger DP sizes
+                num_engines = len(current_counts)
+                min_score = sys.maxsize
+                eng_index = 0
+                for i in range(num_engines):
+                    # Start from client_index to help with balancing when
+                    # engines are empty.
+                    idx = (self.eng_start_index + i) % num_engines
+                    waiting, running = current_counts[idx]
+                    score = waiting * 4 + running
+                    if score < min_score:
+                        min_score = score
+                        eng_index = idx
+                # Increment local waiting count for better balancing between
+                # stats updates from the coordinator (which happen every
+                # 100ms).
+                current_counts[eng_index][0] += self.client_count
+                if request.session_id is not None:
+                    # TODO: Add LRU-based eviction of self.session_rank_map
+                    # to constrain its size. Hard-code the size to 1000000 items.`
+                    self.session_rank_map[request.session_id] = eng_index
 
         chosen_engine = self.core_engines[eng_index]
         # Record which engine is chosen for this request, to handle aborts.

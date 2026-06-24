@@ -145,6 +145,7 @@ class OpenAIServingChatBatch(OpenAIServingChat):
         lora_request = self._maybe_get_adapters(request, supports_default_mm_loras=True)
         model_name = self.models.model_name(lora_request)
         data_parallel_rank = self._get_data_parallel_rank(raw_request)
+        session_id = self._get_session_id(raw_request)
         max_model_len = self.model_config.max_model_len
 
         generators: list[AsyncGenerator[RequestOutput, None]] = []
@@ -183,6 +184,7 @@ class OpenAIServingChatBatch(OpenAIServingChat):
                     trace_headers=trace_headers,
                     priority=request.priority if hasattr(request, "priority") else 0,
                     data_parallel_rank=data_parallel_rank,
+                    session_id=session_id,
                     reasoning_ended=None,
                 )
             )

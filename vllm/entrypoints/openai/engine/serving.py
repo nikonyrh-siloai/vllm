@@ -148,6 +148,12 @@ class OpenAIServing(BaseServing, BeamSearchOnlineMixin):
         return None
 
     @staticmethod
+    def _get_session_id(raw_request: Request | None) -> str | None:
+        if raw_request is None:
+            return None
+        return raw_request.headers.get("x-session-id")
+
+    @staticmethod
     def _get_data_parallel_rank(raw_request: Request | None) -> int | None:
         """Pulls the data parallel rank from a header, if provided"""
         if raw_request is None:

@@ -151,8 +151,9 @@ class OpenAIServingCompletion(OpenAIServing):
 
         lora_request = self._maybe_get_adapters(request)
 
-        # Extract data_parallel_rank from header (router can inject it)
+        # Extract data_parallel_rank and session_id from headers.
         data_parallel_rank = self._get_data_parallel_rank(raw_request)
+        session_id = self._get_session_id(raw_request)
 
         # Schedule the request and get the result generator.
         max_model_len = self.model_config.max_model_len
@@ -210,6 +211,7 @@ class OpenAIServingCompletion(OpenAIServing):
                     trace_headers=trace_headers,
                     priority=request.priority,
                     data_parallel_rank=data_parallel_rank,
+                    session_id=session_id,
                 )
 
             generators.append(generator)

@@ -209,8 +209,9 @@ class ServingTokens(OpenAIServing):
             else await self._get_trace_headers(raw_request.headers)
         )
 
-        # Extract data_parallel_rank from header (router can inject it)
+        # Extract data_parallel_rank and session_id from headers.
         data_parallel_rank = self._get_data_parallel_rank(raw_request)
+        session_id = self._get_session_id(raw_request)
 
         result_generator = self.engine_client.generate(
             engine_input,
@@ -220,6 +221,7 @@ class ServingTokens(OpenAIServing):
             trace_headers=trace_headers,
             priority=request.priority,
             data_parallel_rank=data_parallel_rank,
+            session_id=session_id,
         )
 
         assert result_generator is not None

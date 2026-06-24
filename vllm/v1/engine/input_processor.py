@@ -251,6 +251,7 @@ class InputProcessor:
         trace_headers: Mapping[str, str] | None = None,
         priority: int = 0,
         data_parallel_rank: int | None = None,
+        session_id: str | None = None,
         resumable: bool = False,
     ) -> EngineCoreRequest:
         self._validate_params(params, supported_tasks)
@@ -382,6 +383,7 @@ class InputProcessor:
             data_parallel_rank=data_parallel_rank,
             trace_headers=trace_headers,
             resumable=resumable,
+            session_id=session_id,
         )
 
     def _validate_prompt_len(

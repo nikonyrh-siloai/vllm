@@ -282,8 +282,9 @@ class OpenAIServingChat(OpenAIServing):
 
         model_name = self.models.model_name(lora_request)
 
-        # Extract data_parallel_rank from header (router can inject it)
+        # Extract data_parallel_rank and session_id from headers.
         data_parallel_rank = self._get_data_parallel_rank(raw_request)
+        session_id = self._get_session_id(raw_request)
 
         # Schedule the request and get the result generator.
         max_model_len = self.model_config.max_model_len
@@ -363,6 +364,7 @@ class OpenAIServingChat(OpenAIServing):
                     trace_headers=trace_headers,
                     priority=request.priority,
                     data_parallel_rank=data_parallel_rank,
+                    session_id=session_id,
                     reasoning_ended=reasoning_ended,
                     reasoning_parser_kwargs={
                         "chat_template_kwargs": chat_template_kwargs,
