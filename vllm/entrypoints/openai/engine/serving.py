@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 import json
 import time
+import zlib
 from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass, field
 from http import HTTPStatus
@@ -84,6 +85,15 @@ class OpenAIServing(BaseServing, BeamSearchOnlineMixin):
         kv_transfer_config = getattr(vllm_config, "kv_transfer_config", None)
         self.has_kv_connector = kv_transfer_config is not None
 
+        parallel_config = getattr(vllm_config, "parallel_config", None)
+        if parallel_config is not None:
+            dp_local = parallel_config.data_parallel_size_local
+            dp_size = parallel_config.data_parallel_size
+            local_only = parallel_config.local_engines_only
+            self._dp_num_ranks = dp_local if local_only else dp_size
+        else:
+            self._dp_num_ranks = 0
+
         # Computed once at startup (cached by ``vllm_config`` identity) and
         # stamped on non-streaming responses. Streaming chunks deliberately
         # omit it to avoid per-chunk overhead.
@@ -147,20 +157,31 @@ class OpenAIServing(BaseServing, BeamSearchOnlineMixin):
 
         return None
 
-    @staticmethod
-    def _get_data_parallel_rank(raw_request: Request | None) -> int | None:
-        """Pulls the data parallel rank from a header, if provided"""
+    def _get_data_parallel_rank(
+        self, raw_request: Request | None
+    ) -> int | None:
         if raw_request is None:
             return None
 
         rank_str = raw_request.headers.get("X-data-parallel-rank")
-        if rank_str is None:
-            return None
+        if rank_str is not None:
+            try:
+                return int(rank_str)
+            except ValueError:
+                return None
 
-        try:
-            return int(rank_str)
-        except ValueError:
-            return None
+        # Session affinity: hash session ID to a DP rank.
+        if self._dp_num_ranks > 1:
+            session_id = raw_request.headers.get(
+                "x-session-id"
+            )
+            if session_id is not None:
+                return (
+                    zlib.crc32(session_id.encode("utf-8"))
+                    % self._dp_num_ranks
+                )
+
+        return None
 
     async def _with_kv_transfer_rejection_cleanup(
         self,
