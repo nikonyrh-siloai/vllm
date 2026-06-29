@@ -482,6 +482,11 @@ class VocabParallelEmbedding(PluggableLayer):
             )
         else:
             masked_input = input_
+
+            # Apply the same mask as we do with TP > 1
+            masked_input[(masked_input < 0) |
+                         (masked_input >= self.num_embeddings_per_partition)] = 0
+
         # Get the embeddings.
         output_parallel = self.quant_method.embedding(self, masked_input.long())
         # Mask the output embedding.
